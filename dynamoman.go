@@ -4,6 +4,7 @@ import (
   "fmt"
   "os"
   "flag"
+  "regexp"
 
   "github.com/aws/aws-sdk-go/aws"
   "github.com/aws/aws-sdk-go/aws/session"
@@ -26,6 +27,8 @@ func main() {
   make := flag.String("w", "", "name of table to create backup from")
   makeAll := flag.Bool("a", false, "create backups of all tables")
   readAll := flag.Bool("u", false, "upload all the backups of all tables")
+  copyFrom := flag.String("from", "", "stage to copy from")
+  copyTo := flag.String("to", "", "stage to copy to")
 
   flag.Parse()
   noFlags := true
@@ -42,6 +45,10 @@ func main() {
     backup(svc, *make)
     noFlags = false
   }
+  if len(*copyFrom) > 0 && len(*copyTo) > 0 {
+    copyStage(svc, *copyFrom, *copyTo)
+    noFlags = false
+  }
   if *makeAll {
     applyToTable(svc, backup)
     noFlags = false
@@ -52,7 +59,7 @@ func main() {
   }
   if noFlags { 
     displayTables(svc)
-  }
+  } 
 }
 
 func displayTables(svc *dynamodb.DynamoDB) {
@@ -84,3 +91,13 @@ func load(svc *dynamodb.DynamoDB, name string) {
   defer file.Close()
   loadBackup(svc, name, file)
 }
+
+func copyStage(svc *dynamodb.DynamoDB, from string, to string) {
+  tables := listTables(svc)
+  fromTables := filter(tables, from)
+  re := regexp.MustCompile(from + "$")
+  for _, table := range fromTables {
+    new := re.ReplaceAllString(*table, to)
+    copyFromTo(svc, *table, new)
+  }
+} 

@@ -5,6 +5,7 @@ import (
   "os"
   "io/ioutil"
   "encoding/json"
+  "regexp"
 
   "github.com/aws/aws-sdk-go/aws"
   "github.com/aws/aws-sdk-go/service/dynamodb"
@@ -83,6 +84,61 @@ func getKeyTable(db *dynamodb.DynamoDB, tableName string) []*dynamodb.KeySchemaE
   res, err := db.DescribeTable(params)
   check(err)
   return res.Table.KeySchema
+}
+
+func copyFromTo(db *dynamodb.DynamoDB, from string, to string) {
+  params := &dynamodb.ScanInput{
+    TableName: aws.String(from),
+  }
+  stageRe := regexp.MustCompile(".*-")
+  fromStage := stageRe.ReplaceAllString(from, "")
+  toStage := stageRe.ReplaceAllString(to, "")
+  re, err := regexp.Compile(fromStage)
+  check(err)
+  err = db.ScanPages(params,
+    func(page *dynamodb.ScanOutput, lastPage bool) bool {
+      for _, item := range page.Items {
+        if item["thumbnail"] != nil {
+          item["thumbnail"].S = aws.String(re.ReplaceAllString(*item["thumbnail"].S, toStage))
+        }
+        if item["results"] != nil {
+          images := item["results"].L
+          for _, img := range images {
+            img.M["thumbnail"].S = aws.String(re.ReplaceAllString(*img.M["thumbnail"].S, toStage))
+          }
+        }
+        pars := &dynamodb.PutItemInput{
+          TableName: aws.String(to),
+          Item: item,
+        }
+        _, e := db.PutItem(pars)
+        check(e)
+      }
+      return lastPage
+    })
+  check(err)
+}
+
+func filter(slice []*string, postfix string) []*string {
+  re := regexp.MustCompile(postfix + "$")
+  var results []*string
+  for _, str := range slice {
+    if re.MatchString(*str) {
+      results = append(results, str)
+    } 
+  }
+  return results
+}
+
+func replace(slice []*string, orig string, repl string) []*string {
+  re := regexp.MustCompile(orig)
+  var results []*string
+  for _, str := range slice {
+    if re.MatchString(*str) {
+       results = append(results, aws.String(re.ReplaceAllString(*str, repl)))
+    }
+  }
+  return results
 }
 
 func check(e error) {
