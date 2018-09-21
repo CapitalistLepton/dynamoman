@@ -12,16 +12,7 @@ import (
 )
 
 func main() {
-  sess, err := session.NewSession(&aws.Config{
-    Region: aws.String("us-east-1")},
-  )
-  if err != nil {
-    fmt.Println(err)
-    os.Exit(1)
-  }
-
-  svc := dynamodb.New(sess)
-  
+  local := flag.Bool("l", false, "use local dynamodb instead of remote one")
   clear := flag.String("d", "", "name of table to clear data from")
   read := flag.String("o", "", "name of table to load data from")
   make := flag.String("w", "", "name of table to create backup from")
@@ -32,6 +23,20 @@ func main() {
 
   flag.Parse()
   noFlags := true
+
+  var config *aws.Config
+  if *local {
+    config = &aws.Config{
+      Region: aws.String("localhost"),
+      Endpoint: aws.String("http://localhost:8000")}
+  } else {
+    config = &aws.Config{
+      Region: aws.String("us-east-1")}
+  }
+  sess, err := session.NewSession(config)
+  check(err)
+
+  svc := dynamodb.New(sess)
 
   if len(*clear) > 0 { 
     clearTable(svc, *clear)
