@@ -13,6 +13,7 @@ import (
 
 func main() {
   local := flag.Bool("l", false, "use local dynamodb instead of remote one")
+  stage := flag.String("stage", "dev", "stage (dev, testing, production, etc.) to use")
   clear := flag.String("d", "", "name of table to clear data from")
   read := flag.String("o", "", "name of table to load data from")
   make := flag.String("w", "", "name of table to create backup from")
@@ -55,20 +56,20 @@ func main() {
     noFlags = false
   }
   if *makeAll {
-    applyToTable(svc, backup)
+    applyToTable(svc, *stage, backup)
     noFlags = false
   }
   if *readAll {
-    applyToTable(svc, load)
+    applyToTable(svc, *stage, load)
     noFlags = false
   }
   if noFlags { 
-    displayTables(svc)
+    displayTables(svc, *stage)
   } 
 }
 
-func displayTables(svc *dynamodb.DynamoDB) {
-  tables := listTables(svc)
+func displayTables(svc *dynamodb.DynamoDB, stage string) {
+  tables := listTables(svc, stage)
   fmt.Println("Tables:")
   fmt.Println()
   for _, table := range tables {
@@ -76,8 +77,8 @@ func displayTables(svc *dynamodb.DynamoDB) {
   }
 }
 
-func applyToTable(svc *dynamodb.DynamoDB, fun func(*dynamodb.DynamoDB, string)) {
-  tables := listTables(svc)
+func applyToTable(svc *dynamodb.DynamoDB, stage string, fun func(*dynamodb.DynamoDB, string)) {
+  tables := listTables(svc, stage)
   for _, table := range tables {
     fun(svc, *table)
   }
@@ -98,7 +99,7 @@ func load(svc *dynamodb.DynamoDB, name string) {
 }
 
 func copyStage(svc *dynamodb.DynamoDB, from string, to string) {
-  tables := listTables(svc)
+  tables := listTables(svc, from)
   fromTables := filter(tables, from)
   re := regexp.MustCompile(from + "$")
   for _, table := range fromTables {

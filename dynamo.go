@@ -11,13 +11,13 @@ import (
   "github.com/aws/aws-sdk-go/service/dynamodb"
 )
 
-func listTables(db *dynamodb.DynamoDB) []*string {
+func listTables(db *dynamodb.DynamoDB, stage string) []*string {
   res, err := db.ListTables(&dynamodb.ListTablesInput{})
   if err != nil {
     fmt.Println(err)
     os.Exit(1)
   }
-  return res.TableNames
+  return filter(res.TableNames, ".*-" + stage)
 }
 
 func backupTable(db *dynamodb.DynamoDB, tableName string, file *os.File) {
